@@ -1,0 +1,52 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>淘宝用户行为分析 · 项目作品</title><style>
+*{box-sizing:border-box}body{margin:0;background:#edf3f6;color:#172c40;font:16px/1.75 "Microsoft YaHei",system-ui,sans-serif}main{max-width:980px;margin:auto;padding:24px 16px 50px}header{background:#12354d;color:white;padding:32px;border-radius:16px}h1{font-size:clamp(28px,5vw,44px);line-height:1.15;margin:0 0 15px}header p{margin:0;color:#dceaf2}.stats{display:flex;gap:26px;flex-wrap:wrap;margin-top:20px}.stats strong{font-size:25px;display:block}section{margin-top:18px;background:white;border:1px solid #d9e4ea;border-radius:14px;padding:22px}h2{margin:0 0 8px;font-size:22px}p{margin:8px 0}pre{overflow:auto;background:#eaf1f6;padding:14px;border-radius:8px;font-size:13px}.bars{display:grid;grid-template-columns:repeat(24,minmax(0,1fr));gap:4px;height:200px;align-items:end;border-bottom:1px solid #bacbd5}.bars div{background:#4588a8;border-radius:4px 4px 0 0}.bars .peak{background:#155371}.axis{display:flex;justify-content:space-between;font-size:12px;color:#4a6176}button{background:white;color:#17374d;border:1px solid #b1c4cf;border-radius:7px;padding:6px 10px;cursor:pointer;margin:3px;font:inherit}button[aria-pressed=true]{background:#155371;color:white}a{color:#155371}table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:5px 12px;border-bottom:1px solid #ddd}
+</style><main>
+<header><h1>淘宝用户行为分析</h1><p>用 MySQL 整理行为记录，再用 Power BI 比较不同时段和商品类目的表现。</p><div class="stats"><div><strong>199,908</strong>清洗后记录</div><div><strong>1,973</strong>样本用户</div><div><strong>9 天</strong>2017.11.25–12.03</div></div></header>
+<section><h2>我做了什么</h2><ol><li>使用 Python 抽取 20 万条行为记录，导入 MySQL 后检查缺失值、重复记录和时间范围，剔除 92 条范围外记录。</li><li>按日期、小时和行为类型汇总事件次数，再按类目分别比较浏览量和购买量。对比样本发现，浏览量最高的类目与购买量最高的类目不同。</li><li>将查询结果整理到 Excel，再用 Power BI 制作行为分布、分时趋势和类目表现看板，最后写成分析报告。</li></ol></section>
+<section><h2>MySQL 查询示例</h2><p>把时间戳转成小时后，以小时和行为类型分组，统计的是事件次数。</p><pre>SELECT HOUR(FROM_UNIXTIME(ts)) AS event_hour,
+       behavior_type, COUNT(*) AS event_count
+FROM user_behavior_clean
+GROUP BY event_hour, behavior_type
+ORDER BY event_hour, behavior_type;</pre><details><summary>查看同用户、同商品的加购路径修订示例</summary><p>用用户 ID、商品 ID 和时间顺序约束三个事件，按用户去重。此处展示修订写法，尚未用修订后的脚本重算转化率。</p><pre>SELECT COUNT(DISTINCT p.user_id) AS users
+FROM user_behavior_clean AS p
+JOIN user_behavior_clean AS c
+  ON c.user_id = p.user_id AND c.item_id = p.item_id
+ AND c.ts &gt; p.ts AND c.behavior_type = &#x27;cart&#x27;
+JOIN user_behavior_clean AS b
+  ON b.user_id = c.user_id AND b.item_id = c.item_id
+ AND b.ts &gt; c.ts AND b.behavior_type = &#x27;buy&#x27;
+WHERE p.behavior_type = &#x27;pv&#x27;;</pre></details></section>
+<section><h2>Power BI 分时趋势</h2><p>下图用项目的 SQL 导出结果复刻 Power BI 看板中的分时分析。切换行为可查看各自的峰值与小时数据。</p><div id="choices" aria-label="选择行为"></div><p id="summary" aria-live="polite"></p><div class="bars" id="bars" aria-hidden="true"></div><div class="axis"><span>0 时</span><span>6 时</span><span>12 时</span><span>18 时</span><span>23 时</span></div><details><summary>查看小时数据表</summary><table><thead><tr><th scope="col">小时</th><th scope="col">事件次数</th></tr></thead><tbody id="values"></tbody></table></details></section>
+<section><h2>从结论到业务问题</h2><p>样本中浏览和购买次数均在 21 时最高，加购和收藏均在 22 时最高。可以把晚间作为商品展示的候选时段，并用更多日期验证这一规律。对浏览量高、购买量低的类目，可以进一步核查商品结构、价格和页面表现。该分析使用抽样记录，结果反映样本中的行为分布。</p></section>
+</main><script>
+const series = {"浏览点击": [5953, 2563, 1415, 829, 1090, 1425, 2652, 4907, 5832, 7301, 8606, 8178, 7627, 9036, 8947, 9840, 9503, 7868, 9106, 11564, 13876, 15992, 15132, 10497], "加入购物车": [319, 178, 112, 58, 54, 90, 189, 338, 371, 454, 485, 487, 444, 468, 526, 601, 572, 461, 493, 705, 867, 949, 957, 728], "收藏": [150, 89, 41, 25, 26, 66, 93, 100, 142, 238, 225, 235, 240, 245, 207, 261, 289, 254, 262, 301, 336, 365, 432, 312], "购买": [157, 69, 22, 10, 30, 16, 27, 99, 127, 195, 289, 232, 231, 292, 231, 219, 273, 217, 196, 283, 285, 327, 291, 211]};
+const buttons = document.querySelector('#choices');
+function draw(name) {
+  const values = series[name];
+  const peak = Math.max(...values);
+  const hour = values.indexOf(peak);
+  document.querySelector('#summary').textContent = name + '峰值：' + hour + ' 时，' + peak.toLocaleString('zh-CN') + ' 次';
+  const bars = document.querySelector('#bars');
+  const table = document.querySelector('#values');
+  bars.replaceChildren();
+  table.replaceChildren();
+  values.forEach((value, index) => {
+    const bar = document.createElement('div');
+    bar.style.height = (value / peak * 100) + '%';
+    bar.title = index + ' 时：' + value + ' 次';
+    bar.classList.toggle('peak', index === hour);
+    bars.append(bar);
+    const row = table.insertRow();
+    row.insertCell().textContent = index + ' 时';
+    row.insertCell().textContent = value;
+  });
+  [...buttons.children].forEach(button => button.setAttribute('aria-pressed', String(button.textContent === name)));
+}
+Object.keys(series).forEach(label => {
+  const button = document.createElement('button');
+  button.textContent = label;
+  button.addEventListener('click', () => draw(label));
+  buttons.append(button);
+});
+draw('浏览点击');
+</script></html>
